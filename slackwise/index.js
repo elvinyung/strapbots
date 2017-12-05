@@ -1,7 +1,7 @@
 'use strict';
 
 let util = require('./lib/util');
-let Splitwise = require('./lib/splitwise').Splitwise;
+let Splitwise = require('splitwise')
 let imgur = require('imgur');
 let graphviz = require('graphviz');
 let fs = require('fs');
@@ -43,17 +43,12 @@ let listDebts = (target, fromOrTo, config, cb) => {
 };
 
 let getBalance = (target, config, cb) => {
-  sw.getGroup((error, data, _) => {
-    if (error) {
-      _logger.error(`Splitwise API error ${JSON.stringify(error)}`);
-      return;
-    }
-
+  sw.getGroup().then(groupData => {
     if (!config.swIdMap[target.id]) {
       cb(null, `I don't know who ${target.real_name} is on Splitwise!`);
     }
 
-    let memberData = JSON.parse(data).group.members
+    let memberData = groupData.members
       .find(member => member.id === config.swIdMap[target.id]);
 
     if (memberData) {
@@ -72,19 +67,15 @@ let getBalance = (target, config, cb) => {
 
       cb(result);
     }
+  }).catch(error => {
+    _logger.error(`Splitwise API error ${JSON.stringify(error)}`);
   });
 }
 
 let graphDebts = (fullGraph, config, cb) => {
-  sw.getGroup((error, data, _) => {
-    if (error) {
-      _logger.error(`Splitwise API error ${JSON.stringify(error)}`);
-      return;
-    }
-
+  sw.getGroup().then(groupData => {
     let graphConfig = config.graph || {};
 
-    let groupData = JSON.parse(data).group;
     let groupMembers = {};
     let balanceGraph = graphviz.digraph('Debts');
     balanceGraph.set('layout', fullGraph ? 'dot' : 'neato');
@@ -127,6 +118,8 @@ let graphDebts = (fullGraph, config, cb) => {
           });
       });
     });
+  }).catch(error => {
+    _logger.error(`Splitwise API error ${JSON.stringify(error)}`);
   });
 };
 
@@ -185,8 +178,11 @@ let slackwise = (user, users, argv, config, logger, response, helpService) => {
 };
 
 slackwise.setup = (config, logger) => {
-  sw = new Splitwise(config.swConsumerKey, config.swConsumerSecret,
-    config.swAccessToken, config.swAccessTokenSecret, config.swGroupId);
+  sw = Splitwise({
+    consumerKey: config.swConsumerKey,
+    consumerSecret: config.swConsumerSecret,
+    group_id: config.swGroupId,
+  });
   imgur.setClientId(config.imgurClientId);
   _logger = logger;
   swIdMap = config.swIdMap;
